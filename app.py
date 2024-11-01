@@ -2,25 +2,22 @@ import streamlit as st
 import chess
 import chess.svg
 import matplotlib.pyplot as plt
-import io
 from PIL import Image
+import io
 
 # Initialize the chess board
 if "board" not in st.session_state:
     st.session_state.board = chess.Board()
 
-# Display the chess board using matplotlib
+# Display the chess board using matplotlib and Pillow
 def display_board():
     # Create a matplotlib figure
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.axis("off")
 
-    # Get board as an SVG image and convert to PNG
-    svg_data = chess.svg.board(st.session_state.board)
-    img_data = io.BytesIO()
-    cairosvg.svg2png(bytestring=svg_data.encode("utf-8"), write_to=img_data)
-    img_data.seek(0)
-    image = Image.open(img_data)
+    # Generate SVG image and display it using Pillow
+    svg_data = chess.svg.board(st.session_state.board).encode("utf-8")
+    image = Image.open(io.BytesIO(svg_data))
 
     # Display the image in Streamlit
     st.image(image, use_column_width=True)
