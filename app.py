@@ -1,9 +1,6 @@
 import streamlit as st
 import chess
 import chess.svg
-from PIL import Image
-from cairosvg import svg2png
-import io
 
 # Set up the chess board
 board = chess.Board()
@@ -34,12 +31,10 @@ openings = {
     "Four Knights Game": ["e2e4", "e7e5", "g1f3", "b8c6", "b1c3"],
 }
 
-# Display the chess board as an image
+# Display the chess board as SVG
 def display_board():
     svg = chess.svg.board(board)
-    png = svg2png(bytestring=svg)
-    image = Image.open(io.BytesIO(png))
-    st.image(image)
+    st.image(svg, format="svg")
 
 # Function to identify the opening
 def identify_opening():
