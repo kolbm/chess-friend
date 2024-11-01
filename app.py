@@ -1,70 +1,39 @@
 import streamlit as st
 import chess
-import chess.svg
-import json
+from streamlit_chessboard import st_chessboard
 
-# Initialize a new chess board if not already in session state
-if 'board' not in st.session_state:
+# Initialize chess board
+if "board" not in st.session_state:
     st.session_state.board = chess.Board()
 
-# HTML and JavaScript for interactive chessboard
-html_code = f"""
-<div id="board" style="width: 400px"></div>
-<button id="getPositionBtn">Get Position</button>
-<p id="status"></p>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.min.js"></script>
-<script>
-    var board = Chessboard('board', {{
-      draggable: true,
-      position: '{st.session_state.board.fen()}',
-      onDrop: onDrop
-    }});
+# Function to handle moves
+def handle_move(from_square, to_square):
+    move = chess.Move.from_uci(from_square + to_square)
+    if move in st.session_state.board.legal_moves:
+        st.session_state.board.push(move)
+        return True
+    else:
+        st.warning("Illegal move attempted.")
+        return False
 
-    var game = new Chess();
+# Display the chessboard and capture moves
+st.title("Interactive Chessboard with Streamlit")
+st.write("Drag and drop pieces to make your move!")
 
-    function onDrop(source, target) {{
-        var move = game.move({{
-            from: source,
-            to: target,
-            promotion: 'q' // Promote to a queen for simplicity
-        }});
+# Display the board and get user's move
+move = st_chessboard("chessboard", initial_fen=st.session_state.board.fen(), theme="blue2")
+if move:
+    from_square, to_square = move["from"], move["to"]
+    if handle_move(from_square, to_square):
+        st.experimental_rerun()
 
-        if (move === null) return 'snapback';
-        
-        // Send move to Streamlit backend
-        fetch('/?move=' + JSON.stringify({{from: source, to: target}}))
-          .then(response => response.json())
-          .then(data => {{
-              if (data.error) {{
-                  alert(data.error);
-              }} else {{
-                  board.position(data.position);
-                  document.getElementById("status").innerHTML = data.status;
-              }}
-          }});
-    }}
-</script>
-"""
+# Show the FEN notation for reference
+st.write(f"Current FEN: {st.session_state.board.fen()}")
 
-# Handle move submission and board update
-def handle_move(move):
-    from_square = move["from"]
-    to_square = move["to"]
-    uci_move = from_square + to_square
-    try:
-        st.session_state.board.push_uci(uci_move)
-        return {"position": st.session_state.board.fen(), "status": "Move accepted"}
-    except ValueError:
-        return {"error": "Invalid move!", "position": st.session_state.board.fen(), "status": "Try again"}
-
-# Check for move query parameters
-if st.experimental_get_query_params():
-    move_data = json.loads(st.experimental_get_query_params()["move"][0])
-    result = handle_move(move_data)
-    st.json(result)  # Return JSON response for the frontend
-
-# Display the chessboard and instructions
-st.markdown("### Interactive Chess Game")
-st.markdown("Move the pieces by dragging and dropping them on the board!")
-st.components.v1.html(html_code, height=500)
+# Check for game-ending conditions
+if st.session_state.board.is_checkmate():
+    st.write("Checkmate! Game over.")
+elif st.session_state.board.is_stalemate():
+    st.write("Stalemate! Game over.")
+elif st.session_state.board.is_insufficient_material():
+    st.write("Draw due to insufficient material.")
