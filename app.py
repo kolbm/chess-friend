@@ -1,85 +1,70 @@
 import streamlit as st
 import chess
 import chess.svg
+import json
 
-# Set up the chess board
-board = chess.Board()
+# Initialize a new chess board if not already in session state
+if 'board' not in st.session_state:
+    st.session_state.board = chess.Board()
 
-# Function to display the chess board as HTML
-def display_board():
-    svg = chess.svg.board(board)  # Generate the board as an SVG
-    st.write(f'<div>{svg}</div>', unsafe_allow_html=True)
+# HTML and JavaScript for interactive chessboard
+html_code = f"""
+<div id="board" style="width: 400px"></div>
+<button id="getPositionBtn">Get Position</button>
+<p id="status"></p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.min.js"></script>
+<script>
+    var board = Chessboard('board', {{
+      draggable: true,
+      position: '{st.session_state.board.fen()}',
+      onDrop: onDrop
+    }});
 
-# Extended list of chess openings
-openings = {
-    "Ruy Lopez": ["e2e4", "e7e5", "g1f3", "b8c6", "f1b5"],
-    "Italian Game": ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"],
-    "Sicilian Defense": ["e2e4", "c7c5"],
-    "French Defense": ["e2e4", "e7e6"],
-    "Caro-Kann Defense": ["e2e4", "c7c6"],
-    "Pirc Defense": ["e2e4", "d7d6"],
-    "Scandinavian Defense": ["e2e4", "d7d5"],
-    "Alekhine's Defense": ["e2e4", "g8f6"],
-    "Queen's Gambit": ["d2d4", "d7d5", "c2c4"],
-    "King's Gambit": ["e2e4", "e7e5", "f2f4"],
-    "English Opening": ["c2c4"],
-    "Nimzo-Indian Defense": ["d2d4", "g8f6", "c2c4", "e7e6", "b1c3", "f8b4"],
-    "King's Indian Defense": ["d2d4", "g8f6", "c2c4", "g7g6"],
-    "Grünfeld Defense": ["d2d4", "g8f6", "c2c4", "g7g6", "b1c3", "d7d5"],
-    "Dutch Defense": ["d2d4", "f7f5"],
-    "Benoni Defense": ["d2d4", "c7c5"],
-    "Catalan Opening": ["d2d4", "d7d5", "g2g3"],
-    "London System": ["d2d4", "d7d5", "g1f3", "e7e6", "c2c3"],
-    "Trompowsky Attack": ["d2d4", "g8f6", "g1f3"],
-    "Vienna Game": ["e2e4", "e7e5", "g1f3", "d7d6"],
-    "Scotch Game": ["e2e4", "e7e5", "g1f3", "d7d6", "d2d4"],
-    "Four Knights Game": ["e2e4", "e7e5", "g1f3", "b8c6", "b1c3"],
-}
+    var game = new Chess();
 
-# Function to identify the opening
-def identify_opening():
-    moves = [board.san(move) for move in board.move_stack]
-    for opening_name, opening_moves in openings.items():
-        if moves[:len(opening_moves)] == opening_moves:
-            return opening_name
-    return "Unknown Opening"
+    function onDrop(source, target) {{
+        var move = game.move({{
+            from: source,
+            to: target,
+            promotion: 'q' // Promote to a queen for simplicity
+        }});
 
-# Main Streamlit app
-def main():
-    st.title("Streamlit Chess Game")
-    st.write("Play chess and see if you recognize the opening!")
+        if (move === null) return 'snapback';
+        
+        // Send move to Streamlit backend
+        fetch('/?move=' + JSON.stringify({{from: source, to: target}}))
+          .then(response => response.json())
+          .then(data => {{
+              if (data.error) {{
+                  alert(data.error);
+              }} else {{
+                  board.position(data.position);
+                  document.getElementById("status").innerHTML = data.status;
+              }}
+          }});
+    }}
+</script>
+"""
 
-    # Display current board
-    display_board()
+# Handle move submission and board update
+def handle_move(move):
+    from_square = move["from"]
+    to_square = move["to"]
+    uci_move = from_square + to_square
+    try:
+        st.session_state.board.push_uci(uci_move)
+        return {"position": st.session_state.board.fen(), "status": "Move accepted"}
+    except ValueError:
+        return {"error": "Invalid move!", "position": st.session_state.board.fen(), "status": "Try again"}
 
-    # Show the current opening if recognizable
-    opening_name = identify_opening()
-    st.write(f"Opening: {opening_name}")
+# Check for move query parameters
+if st.experimental_get_query_params():
+    move_data = json.loads(st.experimental_get_query_params()["move"][0])
+    result = handle_move(move_data)
+    st.json(result)  # Return JSON response for the frontend
 
-    # Input for moves
-    move = st.text_input("Enter your move in algebraic notation (e.g., e2e4):").strip()
-
-    if st.button("Make Move"):
-        try:
-            # Try to push move if it's valid
-            board.push_san(move)
-            display_board()  # Update board
-        except ValueError:
-            st.write("Invalid move! Try again.")
-
-    # Check if game is over
-    if board.is_checkmate():
-        st.write("Checkmate!")
-    elif board.is_stalemate():
-        st.write("Stalemate!")
-    elif board.is_insufficient_material():
-        st.write("Draw due to insufficient material.")
-    
-    # Option for AI opponent
-    if st.button("Play against AI"):
-        ai_move = random.choice([move for move in board.legal_moves])
-        board.push(ai_move)
-        display_board()
-
-if __name__ == "__main__":
-    main()
+# Display the chessboard and instructions
+st.markdown("### Interactive Chess Game")
+st.markdown("Move the pieces by dragging and dropping them on the board!")
+st.components.v1.html(html_code, height=500)
