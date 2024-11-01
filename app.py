@@ -1,15 +1,20 @@
 import streamlit as st
 import chess
 import chess.svg
+import cairosvg
+from PIL import Image
+import io
 
 # Initialize the chess board
 if "board" not in st.session_state:
     st.session_state.board = chess.Board()
 
-# Display the board as SVG in Streamlit
+# Display the board as a PNG in Streamlit
 def display_board():
-    svg = chess.svg.board(st.session_state.board).encode("utf-8")
-    st.image(svg, format="svg")
+    svg_data = chess.svg.board(st.session_state.board)
+    png_data = cairosvg.svg2png(bytestring=svg_data.encode("utf-8"))
+    image = Image.open(io.BytesIO(png_data))
+    st.image(image)
 
 # Make a move by clicking squares
 st.title("Interactive Chess with Streamlit")
